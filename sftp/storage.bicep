@@ -7,7 +7,7 @@ param storageAccountName string
 @description('Prefix for each private SFTP user container.')
 @minLength(3)
 @maxLength(20)
-param blobContainerName string
+param blobContainerNamePrefix string
 
 @description('Whether to add the SecurityControl=Ignore tag to the storage account.')
 param enableSecurityControlTag bool
@@ -52,7 +52,7 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2025-06-01'
 
 resource blobContainers 'Microsoft.Storage/storageAccounts/blobServices/containers@2025-06-01' = [for localUser in localUsers: {
   parent: blobService
-  name: toLower('${blobContainerName}-${localUser.name}')
+  name: toLower('${blobContainerNamePrefix}-${localUser.name}')
   properties: {
     publicAccess: 'None'
   }

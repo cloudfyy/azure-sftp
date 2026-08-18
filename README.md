@@ -106,7 +106,7 @@ $proxyAdminSshPublicKey
 Edit `main.bicepparam` and set:
 
 - `storageAccountName` to a globally unique name
-- `blobContainerName` to the container name prefix; the default creates `data-sftpuser01`, `data-sftpuser02`, and `data-sftpuser03`
+- `blobContainerNamePrefix` to the container name prefix; the default creates `data-sftpuser01`, `data-sftpuser02`, and `data-sftpuser03`
 - `enableSecurityControlTag` to `true` only when the storage account requires the `SecurityControl=Ignore` tag; the default is `false`
 - `proxyAdminSshPublicKey` to the public key generated for proxy VM administration
 - `proxyAdminUsername` to the required Linux administrator username

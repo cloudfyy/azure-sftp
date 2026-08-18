@@ -11,7 +11,7 @@ param storageAccountName string = 'st${uniqueString(resourceGroup().id)}'
 @description('Prefix for each private SFTP user container.')
 @minLength(3)
 @maxLength(20)
-param blobContainerName string = 'data'
+param blobContainerNamePrefix string = 'data'
 
 @description('Whether to add the SecurityControl=Ignore tag to the storage account.')
 param enableSecurityControlTag bool = false
@@ -53,7 +53,7 @@ var privateEndpointSubnetName = 'snet-private-endpoints'
 
 module storage './storage.bicep' = {
   params: {
-    blobContainerName: blobContainerName
+    blobContainerNamePrefix: blobContainerNamePrefix
     enableSecurityControlTag: enableSecurityControlTag
     localUsers: localUsers
     location: location
