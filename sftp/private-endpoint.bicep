@@ -72,4 +72,8 @@ resource blobPrivateEndpointDnsZoneGroup 'Microsoft.Network/privateEndpoints/pri
 }
 
 output privateEndpointId string = blobPrivateEndpoint.id
-output privateEndpointIpAddress string = blobPrivateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]
+output privateEndpointIpAddress string = length(blobPrivateEndpoint.properties.customDnsConfigs) > 0
+  ? (length(blobPrivateEndpoint.properties.customDnsConfigs[0].ipAddresses) > 0
+    ? blobPrivateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]
+    : '')
+  : ''

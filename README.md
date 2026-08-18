@@ -284,6 +284,8 @@ $storagePrivateIp
 $proxyVmNames
 ```
 
+Azure can leave `storageBlobPrivateEndpointIpAddress` empty while the private endpoint DNS metadata is still being populated. The authoritative runtime check is the Storage hostname resolution from each proxy VM below.
+
 Use Azure Run Command to confirm on both instances that cloud-init installed Nginx, the Stream listener is active, and the Storage hostname resolves to the private endpoint:
 
 ```powershell
@@ -298,7 +300,7 @@ foreach ($proxyVmName in $proxyVmNames) {
 }
 ```
 
-The resolved Storage address on both VMs must match `$storagePrivateIp`. The VMs have no public IPs and the NSG doesn't expose their SSH daemons; administer them through Azure Run Command, Azure Bastion, or a private network connection.
+The Storage hostname must resolve to a private address on both VMs. When `$storagePrivateIp` is populated, the resolved address must match it. The VMs have no public IPs and the NSG doesn't expose their SSH daemons; administer them through Azure Run Command, Azure Bastion, or a private network connection.
 
 ## Test an SFTP Connection
 
