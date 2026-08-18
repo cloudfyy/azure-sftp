@@ -163,11 +163,23 @@ az group create `
 
 ## Validate the Deployment
 
-Compile the Bicep template locally:
+Compile the Bicep entrypoint and all modules referenced by it, then compile the parameter file:
 
 ```powershell
 az bicep build --file .\main.bicep --stdout | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  throw 'main.bicep or one of its modules failed validation.'
+}
+
+az bicep build-params --file .\main.bicepparam --stdout | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  throw 'main.bicepparam failed validation.'
+}
+
+Write-Host 'All Bicep files passed validation.'
 ```
+
+Building `main.bicep` also compiles `storage.bicep`, `network.bicep`, `private-endpoint.bicep`, `load-balancer.bicep`, and `nginx-proxies.bicep` because they are referenced as modules. `build-params` separately verifies that `main.bicepparam` matches the entrypoint parameters.
 
 Validate the template and parameter file against Azure Resource Manager:
 
