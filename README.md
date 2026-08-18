@@ -1,6 +1,6 @@
 # Azure Storage SFTP Deployment Guide
 
-This guide deploys the resources defined in `main.bicep` by using the values in `main.bicepparam`.
+This guide deploys the resources defined in `sftp/main.bicep` by using the values in `sftp/main.bicepparam`.
 
 ## Resources Deployed
 
