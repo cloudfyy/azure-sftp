@@ -14,12 +14,54 @@ This guide deploys the resources defined in `sftp/main.bicep` by using the value
 - Two Ubuntu VMs in an availability set, each running Nginx Stream as a transparent TCP proxy
 - One Standard public load balancer and one static Standard public IP address
 - Public TCP 22 forwarded by the load balancer to Nginx TCP 2222
+- Maximum file upload size through the Azure Storage SFTP endpoint is 500 GB
 - Storage public network access disabled and a minimum TLS version of 1.2
 - No `SecurityControl` tag by default; it can be enabled through a deployment parameter
 
 The proxy VMs have no public IP addresses. Nginx does not terminate SSH; it forwards the encrypted TCP stream to Azure Storage SFTP through the Blob private endpoint. The client therefore authenticates directly to Azure Storage and receives the Azure Storage SSH host key.
 
 The load balancer distributes new TCP connections across both proxy VMs and removes an instance from rotation when its TCP 2222 health probe fails. The availability set separates the two instances across fault and update domains within the selected region.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  client["SFTP client"]
+
+  subgraph azure["Azure resource group"]
+    pip["Static Standard public IP"]
+    lb["Standard Load Balancer<br/>TCP 22 to TCP 2222"]
+
+    subgraph vnet["Virtual network 10.20.0.0/16"]
+      subgraph proxySubnet["Proxy subnet 10.20.1.0/24"]
+        vm1["Nginx proxy VM 1<br/>TCP 2222"]
+        vm2["Nginx proxy VM 2<br/>TCP 2222"]
+      end
+
+      subgraph peSubnet["Private endpoint subnet 10.20.2.0/24"]
+        pe["Blob private endpoint"]
+      end
+    end
+
+    dns["Private DNS zone<br/>privatelink.blob.core.windows.net"]
+    storage["StorageV2 account<br/>HNS and SFTP enabled<br/>Public network access disabled"]
+  end
+
+  client -->|"SFTP / SSH TCP 22"| pip
+  pip --> lb
+  lb -->|"TCP 2222"| vm1
+  lb -->|"TCP 2222"| vm2
+  lb -.->|"Health probe TCP 2222"| vm1
+  lb -.->|"Health probe TCP 2222"| vm2
+  vm1 -->|"Encrypted SSH TCP 22"| pe
+  vm2 -->|"Encrypted SSH TCP 22"| pe
+  pe --> storage
+  dns -.->|"Private address resolution"| vm1
+  dns -.->|"Private address resolution"| vm2
+  dns -.-> pe
+```
+
+The solid arrows show the SFTP data path. Dashed arrows show load balancer health probes and private DNS relationships. The Nginx proxies forward the SSH stream without decrypting or terminating it.
 
 ## Template Structure
 
