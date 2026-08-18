@@ -93,12 +93,15 @@ Get-Content "$HOME\.ssh\azure-sftp\sftpuser02.pub"
 Get-Content "$HOME\.ssh\azure-sftp\sftpuser03.pub"
 ```
 
-Generate a separate key pair for emergency administration of the proxy VM:
+Generate a separate key pair for administration of the two proxy VMs:
 
 ```powershell
 ssh-keygen -t rsa -b 4096 -f "$sshKeyDirectory\proxy-admin" -C "proxy-admin"
-Get-Content "$sshKeyDirectory\proxy-admin.pub"
+$proxyAdminSshPublicKey = (Get-Content "$sshKeyDirectory\proxy-admin.pub" -Raw).Trim()
+$proxyAdminSshPublicKey
 ```
+
+`proxyAdminSshPublicKey` is not an Azure Storage SFTP user key. The deployment writes this public key to `/home/<proxyAdminUsername>/.ssh/authorized_keys` on both Nginx proxy VMs and disables password authentication. Keep the matching private key, `proxy-admin`, only on the administrator's computer. The public key can be stored in the parameter file, but the private key must never be added to the repository.
 
 Edit `main.bicepparam` and set:
 
@@ -109,6 +112,16 @@ Edit `main.bicepparam` and set:
 - `proxyAdminUsername` to the required Linux administrator username
 - `proxyVmSize` to a VM size available in the selected region
 - Each `localUsers` entry to the required username and matching public key
+
+Paste the complete single-line public key value into `main.bicepparam`, not the path to the `.pub` file. For example:
+
+```bicep-params
+param proxyAdminSshPublicKey = 'ssh-rsa AAAA... proxy-admin'
+param proxyAdminUsername = 'azureuser'
+param proxyVmSize = 'Standard_B2s'
+```
+
+The same administrator public key is installed on both proxy VMs. `proxyAdminUsername` determines the Linux account and home-directory path, while `proxyVmSize` controls the compute size of each VM. The proxy VMs have no public IP addresses, so this key can only be used over a private network path such as Azure Bastion or VPN/ExpressRoute connectivity. Azure Run Command remains available through the Azure control plane without using this SSH key.
 
 Only public keys belong in `main.bicepparam`. Never place private key content in the parameter file or source control.
 
