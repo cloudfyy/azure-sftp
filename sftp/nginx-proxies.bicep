@@ -27,39 +27,39 @@ var nginxCloudInit = replace('''
 #cloud-config
 package_update: true
 packages:
-	- nginx
-	- libnginx-mod-stream
+  - nginx
+  - libnginx-mod-stream
 write_files:
-	- path: /etc/nginx/nginx.conf
-		owner: root:root
-		permissions: '0644'
-		content: |
-			user www-data;
-			worker_processes auto;
-			pid /run/nginx.pid;
-			include /etc/nginx/modules-enabled/*.conf;
+  - path: /etc/nginx/nginx.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      user www-data;
+      worker_processes auto;
+      pid /run/nginx.pid;
+      include /etc/nginx/modules-enabled/*.conf;
 
-			events {
-					worker_connections 1024;
-			}
+      events {
+          worker_connections 1024;
+      }
 
-			stream {
-					proxy_connect_timeout 10s;
-					proxy_timeout 1h;
+      stream {
+          proxy_connect_timeout 10s;
+          proxy_timeout 1h;
 
-					upstream storage_sftp {
-							server __STORAGE_BLOB_HOST__:22;
-					}
+          upstream storage_sftp {
+              server __STORAGE_BLOB_HOST__:22;
+          }
 
-					server {
-							listen 2222;
-							proxy_pass storage_sftp;
-					}
-			}
+          server {
+              listen 2222;
+              proxy_pass storage_sftp;
+          }
+      }
 runcmd:
-	- [nginx, -t]
-	- [systemctl, enable, nginx]
-	- [systemctl, restart, nginx]
+  - [nginx, -t]
+  - [systemctl, enable, nginx]
+  - [systemctl, restart, nginx]
 ''', '__STORAGE_BLOB_HOST__', storageBlobHostName)
 
 resource proxyAvailabilitySet 'Microsoft.Compute/availabilitySets@2024-03-01' = {
