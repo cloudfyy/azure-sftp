@@ -25,10 +25,6 @@ param proxyAdminUsername string = 'azureuser'
 @description('Size of each Nginx proxy VM.')
 param proxyVmSize string = 'Standard_B2s'
 
-@description('Client IPv4 CIDR ranges allowed to connect to the public load balancer on TCP 22.')
-@minLength(1)
-param allowedSftpSourceCidrs string[]
-
 @description('Address space for the virtual network.')
 param virtualNetworkAddressPrefix string = '10.20.0.0/16'
 
@@ -67,7 +63,6 @@ module storage './storage.bicep' = {
 
 module network './network.bicep' = {
   params: {
-    allowedSftpSourceCidrs: allowedSftpSourceCidrs
     location: location
     privateEndpointSubnetAddressPrefix: privateEndpointSubnetAddressPrefix
     privateEndpointSubnetName: privateEndpointSubnetName

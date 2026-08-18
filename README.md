@@ -108,12 +108,9 @@ Edit `main.bicepparam` and set:
 - `proxyAdminSshPublicKey` to the public key generated for proxy VM administration
 - `proxyAdminUsername` to the required Linux administrator username
 - `proxyVmSize` to a VM size available in the selected region
-- `allowedSftpSourceCidrs` to the public IPv4 CIDR ranges of the SFTP clients
 - Each `localUsers` entry to the required username and matching public key
 
 Only public keys belong in `main.bicepparam`. Never place private key content in the parameter file or source control.
-
-The example `203.0.113.0/24` source range is reserved for documentation and isn't routable. Replace it before deployment. Do not use `0.0.0.0/0` unless unrestricted Internet access is an explicit requirement.
 
 ## Sign In and Select a Subscription
 
@@ -317,7 +314,7 @@ The template grants `rwdlc` permissions on each user's own container: read, writ
 - **Region does not support SFTP:** deploy to a supported Azure region by passing `location` in the parameter file or selecting a resource group in a supported region.
 - **Authorization failure:** confirm the signed-in identity has deployment permissions and that the correct subscription is selected.
 - **SSH authentication failure:** confirm the public key assigned to the local user matches the private key supplied with `sftp -i`.
-- **Connection timeout:** confirm the client public IP is included in `allowedSftpSourceCidrs`, outbound TCP 22 is permitted by the client network, and the load balancer probe reports the proxy VM as healthy.
+- **Connection timeout:** confirm outbound TCP 22 is permitted by the client network and the load balancer probe reports both proxy VMs as healthy.
 - **Load balancer probe unhealthy:** use Azure Run Command to inspect `cloud-init status --long`, `systemctl status nginx`, and `journalctl -u nginx` on each proxy VM.
 - **Nginx can't reach Storage:** confirm `${storageAccountName}.blob.core.windows.net` resolves on the VM to the Blob private endpoint IP and TCP 22 is permitted within the virtual network.
 - **Nginx package installation fails:** confirm the load balancer outbound rule and public IP are deployed and that the VM can reach Ubuntu package repositories.

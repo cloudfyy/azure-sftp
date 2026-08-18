@@ -6,9 +6,6 @@ param enableSecurityControlTag = true
 param proxyAdminSshPublicKey = 'REPLACE_WITH_PROXY_VM_ADMIN_SSH_PUBLIC_KEY'
 param proxyAdminUsername = 'azureuser'
 param proxyVmSize = 'Standard_B2s'
-param allowedSftpSourceCidrs = [
-	'203.0.113.0/24'
-]
 param localUsers = [
 	{
 		name: 'sftpuser01'

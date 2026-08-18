@@ -22,28 +22,11 @@ param privateEndpointSubnetName string
 @description('Private endpoint subnet address prefix.')
 param privateEndpointSubnetAddressPrefix string
 
-@description('Client IPv4 CIDR ranges allowed to connect to Nginx through the load balancer.')
-param allowedSftpSourceCidrs string[]
-
-var allowedSftpSecurityRules = [for (sourceCidr, index) in allowedSftpSourceCidrs: {
-  name: 'AllowSftpClient${index + 1}'
-  properties: {
-    access: 'Allow'
-    direction: 'Inbound'
-    priority: 200 + index
-    protocol: 'Tcp'
-    sourceAddressPrefix: sourceCidr
-    sourcePortRange: '*'
-    destinationAddressPrefix: '*'
-    destinationPortRange: '2222'
-  }
-}]
-
 resource proxyNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
   name: 'nsg-sftp-proxy-${resourceSuffix}'
   location: location
   properties: {
-    securityRules: concat([
+    securityRules: [
       {
         name: 'AllowLoadBalancerProbe'
         properties: {
@@ -57,7 +40,20 @@ resource proxyNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2024
           destinationPortRange: '2222'
         }
       }
-    ], allowedSftpSecurityRules)
+      {
+        name: 'AllowSftpFromInternet'
+        properties: {
+          access: 'Allow'
+          direction: 'Inbound'
+          priority: 200
+          protocol: 'Tcp'
+          sourceAddressPrefix: 'Internet'
+          sourcePortRange: '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange: '2222'
+        }
+      }
+    ]
   }
 }
 
