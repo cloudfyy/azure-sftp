@@ -58,6 +58,7 @@ az bicep upgrade
 - A region that supports Azure Blob Storage SFTP
 - A globally unique storage account name containing 3-24 lowercase letters and numbers
 - Permission to register the `Microsoft.Storage` resource provider if it is not already registered
+- Subscription-level Defender for Storage V2 with on-upload malware scanning, or access to a subscription administrator who can enable it
 
 SFTP has an hourly charge while it is enabled, in addition to normal storage and transaction charges. Review current Azure Storage pricing before deployment.
 
@@ -118,6 +119,47 @@ az login
 az account set --subscription $subscriptionId
 az account show --query '{subscription:name, subscriptionId:id, tenantId:tenantId}' --output table
 ```
+
+## Verify Defender for Storage
+
+This deployment inherits Microsoft Defender for Storage settings from the subscription and does not enable or override them at the storage account level. Query the selected subscription:
+
+```powershell
+az security pricing show `
+  --name StorageAccounts `
+  --query '{pricingTier:pricingTier, subPlan:subPlan, extensions:extensions}' `
+  --output jsonc
+```
+
+Defender for Storage V2 with on-upload malware scanning is enabled only when all of the following are present in the result:
+
+- `pricingTier` is `Standard`
+- `subPlan` is `DefenderForStorageV2`
+- The `OnUploadMalwareScanning` extension has `isEnabled` set to `True`
+
+Run this PowerShell check to evaluate all three conditions:
+
+```powershell
+$defenderStorage = az security pricing show `
+  --name StorageAccounts `
+  --output json | ConvertFrom-Json
+
+$onUploadMalwareScanning = $defenderStorage.extensions |
+  Where-Object { $_.name -eq 'OnUploadMalwareScanning' }
+
+$defenderStorageV2Enabled =
+  $defenderStorage.pricingTier -eq 'Standard' -and
+  $defenderStorage.subPlan -eq 'DefenderForStorageV2' -and
+  [string]$onUploadMalwareScanning.isEnabled -eq 'True'
+
+if (-not $defenderStorageV2Enabled) {
+  throw 'Defender for Storage V2 with on-upload malware scanning is not enabled for this subscription.'
+}
+
+Write-Host 'Defender for Storage V2 with on-upload malware scanning is enabled.'
+```
+
+If the check fails, ask a subscription `Owner` or `Security Admin` to enable Defender for Storage V2 and its `OnUploadMalwareScanning` extension. Do not add a storage-account-level override unless this account intentionally requires settings that differ from the subscription policy. Subscription-level protection for a newly created storage account can take time to propagate, so verify the account protection status and upload scanning after deployment.
 
 Register the required resource providers:
 
