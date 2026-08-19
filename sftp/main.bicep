@@ -1,6 +1,6 @@
 targetScope = 'resourceGroup'
 
-@description('Azure region for all resources.')
+@description('Azure region for the storage account.')
 param location string = resourceGroup().location
 
 @description('Globally unique storage account name.')
@@ -16,24 +16,6 @@ param blobContainerNamePrefix string = 'data'
 @description('Whether to add the SecurityControl=Ignore tag to the storage account.')
 param enableSecurityControlTag bool = false
 
-@description('SSH public key used only for emergency administration of the proxy VMs from the private network.')
-param proxyAdminSshPublicKey string
-
-@description('Linux administrator username for the proxy VMs.')
-param proxyAdminUsername string = 'azureuser'
-
-@description('Size of each Nginx proxy VM.')
-param proxyVmSize string = 'Standard_B2s'
-
-@description('Address space for the virtual network.')
-param virtualNetworkAddressPrefix string = '10.20.0.0/16'
-
-@description('Address prefix for the Nginx proxy subnet.')
-param proxySubnetAddressPrefix string = '10.20.1.0/24'
-
-@description('Address prefix for the Storage private endpoint subnet.')
-param privateEndpointSubnetAddressPrefix string = '10.20.2.0/24'
-
 type localUserConfig = {
   @minLength(3)
   @maxLength(42)
@@ -46,76 +28,36 @@ type localUserConfig = {
 @maxLength(3)
 param localUsers localUserConfig[]
 
-var resourceSuffix = uniqueString(resourceGroup().id, storageAccountName)
-var virtualNetworkName = 'vnet-sftp-${resourceSuffix}'
-var proxySubnetName = 'snet-proxy'
-var privateEndpointSubnetName = 'snet-private-endpoints'
-
-module storage './storage.bicep' = {
+module storageAccount './storage-account.bicep' = {
+  name: 'storage-account'
   params: {
-    blobContainerNamePrefix: blobContainerNamePrefix
+    location: location
+    storageAccountName: storageAccountName
     enableSecurityControlTag: enableSecurityControlTag
+  }
+}
+
+module blobContainers './blob-containers.bicep' = {
+  name: 'blob-containers'
+  params: {
+    storageAccountName: storageAccount.outputs.storageAccountName
+    blobContainerNamePrefix: blobContainerNamePrefix
+    localUserNames: [for localUser in localUsers: localUser.name]
+  }
+}
+
+module sftpUsers './sftp-users.bicep' = {
+  name: 'sftp-users'
+  params: {
+    storageAccountName: storageAccount.outputs.storageAccountName
     localUsers: localUsers
-    location: location
-    storageAccountName: storageAccountName
+    blobContainerNames: blobContainers.outputs.blobContainerNames
   }
 }
 
-module network './network.bicep' = {
-  params: {
-    location: location
-    privateEndpointSubnetAddressPrefix: privateEndpointSubnetAddressPrefix
-    privateEndpointSubnetName: privateEndpointSubnetName
-    proxySubnetAddressPrefix: proxySubnetAddressPrefix
-    proxySubnetName: proxySubnetName
-    resourceSuffix: resourceSuffix
-    virtualNetworkAddressPrefix: virtualNetworkAddressPrefix
-    virtualNetworkName: virtualNetworkName
-  }
-}
-
-module privateEndpoint './private-endpoint.bicep' = {
-  params: {
-    location: location
-    privateEndpointSubnetId: network.outputs.privateEndpointSubnetId
-    storageAccountId: storage.outputs.storageAccountId
-    storageAccountName: storageAccountName
-    virtualNetworkId: network.outputs.virtualNetworkId
-    virtualNetworkName: virtualNetworkName
-  }
-}
-
-module loadBalancer './load-balancer.bicep' = {
-  params: {
-    location: location
-    resourceSuffix: resourceSuffix
-  }
-}
-
-module nginxProxies './nginx-proxies.bicep' = {
-  params: {
-    backendPoolId: loadBalancer.outputs.backendPoolId
-    location: location
-    proxyAdminSshPublicKey: proxyAdminSshPublicKey
-    proxyAdminUsername: proxyAdminUsername
-    proxySubnetId: network.outputs.proxySubnetId
-    proxyVmSize: proxyVmSize
-    resourceSuffix: resourceSuffix
-    storageBlobHostName: storage.outputs.storageBlobHostName
-  }
-  dependsOn: [
-    privateEndpoint
-  ]
-}
-
-output storageAccountId string = storage.outputs.storageAccountId
-output blobEndpoint string = storage.outputs.blobEndpoint
-output loadBalancerPublicIpAddress string = loadBalancer.outputs.publicIpAddress
-output sftpEndpoint string = 'sftp://${loadBalancer.outputs.publicIpAddress}'
-output localUserNames string[] = storage.outputs.localUserNames
-output blobContainerNames string[] = storage.outputs.blobContainerNames
-output sftpLoginAddresses string[] = [for localUser in localUsers: 'sftp://${storageAccountName}.${localUser.name}@${loadBalancer.outputs.publicIpAddress}']
-output storageBlobPrivateEndpointIpAddress string = privateEndpoint.outputs.privateEndpointIpAddress
-output proxyVirtualMachineIds string[] = nginxProxies.outputs.virtualMachineIds
-output proxyVirtualMachineNames string[] = nginxProxies.outputs.virtualMachineNames
-output loadBalancerName string = loadBalancer.outputs.loadBalancerName
+output storageAccountId string = storageAccount.outputs.storageAccountId
+output blobEndpoint string = storageAccount.outputs.blobEndpoint
+output sftpEndpoint string = storageAccount.outputs.sftpEndpoint
+output localUserNames string[] = sftpUsers.outputs.localUserNames
+output blobContainerNames string[] = blobContainers.outputs.blobContainerNames
+output sftpLoginAddresses string[] = sftpUsers.outputs.sftpLoginAddresses

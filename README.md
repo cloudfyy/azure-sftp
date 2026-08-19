@@ -1,6 +1,6 @@
 # Azure Storage SFTP Deployment Guide
 
-This guide deploys the resources defined in `sftp/main.bicep` by using the values in `sftp/main.bicepparam`.
+This guide deploys the resources defined in `main.bicep` by using the values in `main.bicepparam`.
 
 ## Resources Deployed
 
@@ -9,68 +9,20 @@ This guide deploys the resources defined in `sftp/main.bicep` by using the value
 - One private Blob container per local user, named `<prefix>-<username>`
 - Exactly three SFTP local users authenticated with SSH public keys
 - Each local user is restricted to its own container
-- One virtual network with separate Nginx proxy and private endpoint subnets
-- One Blob private endpoint and a linked `privatelink.blob.core.windows.net` private DNS zone
-- Two Ubuntu VMs in an availability set, each running Nginx Stream as a transparent TCP proxy
-- One Standard public load balancer and one static Standard public IP address
-- Public TCP 22 forwarded by the load balancer to Nginx TCP 2222
-- Maximum file upload size through the Azure Storage SFTP endpoint is 500 GB
-- Storage public network access disabled and a minimum TLS version of 1.2
+- Public network access enabled and a minimum TLS version of 1.2
 - No `SecurityControl` tag by default; it can be enabled through a deployment parameter
 
-The proxy VMs have no public IP addresses. Nginx does not terminate SSH; it forwards the encrypted TCP stream to Azure Storage SFTP through the Blob private endpoint. The client therefore authenticates directly to Azure Storage and receives the Azure Storage SSH host key.
-
-The load balancer distributes new TCP connections across both proxy VMs and removes an instance from rotation when its TCP 2222 health probe fails. The availability set separates the two instances across fault and update domains within the selected region.
-
-## Architecture
-
-```mermaid
-flowchart LR
-  client["SFTP client"]
-
-  subgraph azure["Azure resource group"]
-    pip["Static Standard public IP"]
-    lb["Standard Load Balancer<br/>TCP 22 to TCP 2222"]
-
-    subgraph vnet["Virtual network 10.20.0.0/16 (default)"]
-      subgraph proxySubnet["Proxy subnet 10.20.1.0/24 (default)"]
-        vm1["Nginx proxy VM 1<br/>TCP 2222"]
-        vm2["Nginx proxy VM 2<br/>TCP 2222"]
-      end
-
-      subgraph peSubnet["Private endpoint subnet 10.20.2.0/24 (default)"]
-        pe["Blob private endpoint"]
-      end
-    end
-
-    dns["Private DNS zone<br/>privatelink.blob.core.windows.net"]
-    storage["StorageV2 account<br/>HNS and SFTP enabled<br/>Public network access disabled"]
-  end
-
-  client -->|"SFTP / SSH TCP 22"| pip
-  pip --> lb
-  lb -->|"TCP 2222"| vm1
-  lb -->|"TCP 2222"| vm2
-  lb -.->|"Health probe TCP 2222"| vm1
-  lb -.->|"Health probe TCP 2222"| vm2
-  vm1 -->|"Encrypted SSH TCP 22"| pe
-  vm2 -->|"Encrypted SSH TCP 22"| pe
-  pe --> storage
-  dns -.->|"Private address resolution"| vm1
-  dns -.->|"Private address resolution"| vm2
-  dns -.-> pe
-```
-
-The solid arrows show the SFTP data path. Dashed arrows show load balancer health probes and private DNS relationships. The Nginx proxies forward the SSH stream without decrypting or terminating it.
+Azure may also display a platform-managed Event Grid System Topic associated with the storage account. It is not explicitly declared or managed by this Bicep template.
 
 ## Template Structure
 
-- `sftp/main.bicep` coordinates the deployment and exposes consolidated outputs.
-- `sftp/storage.bicep` deploys the Storage account, Blob containers, and SFTP local users.
-- `sftp/network.bicep` deploys the virtual network, subnets, and proxy network security group.
-- `sftp/private-endpoint.bicep` deploys the Blob private endpoint and private DNS resources.
-- `sftp/load-balancer.bicep` deploys the Standard public IP and public load balancer.
-- `sftp/nginx-proxies.bicep` deploys the availability set, two NICs, and two Nginx proxy VMs.
+- `sftp/main.bicep` defines deployment parameters, orchestrates the modules, and returns consolidated outputs.
+- `sftp/storage-account.bicep` deploys the StorageV2 account and its SFTP/HNS security settings.
+- `sftp/blob-containers.bicep` deploys the Blob service and one private container per local user.
+- `sftp/sftp-users.bicep` deploys local users and binds each user to its corresponding container and permissions.
+- `sftp/main.bicepparam` supplies environment-specific deployment values.
+
+Deployments continue to use `main.bicep` as the entry point. The resource modules are not deployed separately.
 
 ## Software Prerequisites
 
@@ -104,7 +56,7 @@ az bicep upgrade
 - At least the `Contributor` role on the target resource group or subscription
 - A region that supports Azure Blob Storage SFTP
 - A globally unique storage account name containing 3-24 lowercase letters and numbers
-- Permission to register the `Microsoft.Storage`, `Microsoft.Network`, and `Microsoft.Compute` resource providers if they are not already registered
+- Permission to register the `Microsoft.Storage` resource provider if it is not already registered
 
 SFTP has an hourly charge while it is enabled, in addition to normal storage and transaction charges. Review current Azure Storage pricing before deployment.
 
@@ -119,12 +71,10 @@ Set-Location .\sftp
 The template requires exactly three local users. Generate a separate SSH key pair for each user if suitable keys do not already exist:
 
 ```powershell
-$sshKeyDirectory = "$HOME\.ssh\azure-sftp"
-New-Item -ItemType Directory -Path $sshKeyDirectory -Force | Out-Null
-
-ssh-keygen -t rsa -b 4096 -f "$sshKeyDirectory\sftpuser01" -C "sftpuser01"
-ssh-keygen -t rsa -b 4096 -f "$sshKeyDirectory\sftpuser02" -C "sftpuser02"
-ssh-keygen -t rsa -b 4096 -f "$sshKeyDirectory\sftpuser03" -C "sftpuser03"
+New-Item -ItemType Directory -Path "$HOME\.ssh\azure-sftp" -Force | Out-Null
+ssh-keygen -t rsa -b 4096 -f "$HOME\.ssh\azure-sftp\sftpuser01" -C "sftpuser01"
+ssh-keygen -t rsa -b 4096 -f "$HOME\.ssh\azure-sftp\sftpuser02" -C "sftpuser02"
+ssh-keygen -t rsa -b 4096 -f "$HOME\.ssh\azure-sftp\sftpuser03" -C "sftpuser03"
 ```
 
 Display each public key:
@@ -135,40 +85,16 @@ Get-Content "$HOME\.ssh\azure-sftp\sftpuser02.pub"
 Get-Content "$HOME\.ssh\azure-sftp\sftpuser03.pub"
 ```
 
-Generate a separate key pair for administration of the two proxy VMs:
-
-```powershell
-ssh-keygen -t rsa -b 4096 -f "$sshKeyDirectory\proxy-admin" -C "proxy-admin"
-$proxyAdminSshPublicKey = (Get-Content "$sshKeyDirectory\proxy-admin.pub" -Raw).Trim()
-$proxyAdminSshPublicKey
-```
-
-`proxyAdminSshPublicKey` is not an Azure Storage SFTP user key. The deployment writes this public key to `/home/<proxyAdminUsername>/.ssh/authorized_keys` on both Nginx proxy VMs and disables password authentication. Keep the matching private key, `proxy-admin`, only on the administrator's computer. The public key can be stored in the parameter file, but the private key must never be added to the repository.
-
 Edit `main.bicepparam` and set:
 
 - `storageAccountName` to a globally unique name
-- `virtualNetworkAddressPrefix` to the required VNet address space in CIDR notation; the default is `10.20.0.0/16`
 - `blobContainerNamePrefix` to the container name prefix; the default creates `data-sftpuser01`, `data-sftpuser02`, and `data-sftpuser03`
 - `enableSecurityControlTag` to `true` only when the storage account requires the `SecurityControl=Ignore` tag; the default is `false`
-- `proxyAdminSshPublicKey` to the public key generated for proxy VM administration
-- `proxyAdminUsername` to the required Linux administrator username
-- `proxyVmSize` to a VM size available in the selected region
 - Each `localUsers` entry to the required username and matching public key
 
-The default proxy and private endpoint subnet prefixes are `10.20.1.0/24` and `10.20.2.0/24`. They must remain inside `virtualNetworkAddressPrefix` and must not overlap. If you choose a VNet range that doesn't contain these defaults, also set `proxySubnetAddressPrefix` and `privateEndpointSubnetAddressPrefix` in `main.bicepparam`.
-
-Paste the complete single-line public key value into `main.bicepparam`, not the path to the `.pub` file. For example:
-
-```bicep-params
-param proxyAdminSshPublicKey = 'ssh-rsa AAAA... proxy-admin'
-param proxyAdminUsername = 'azureuser'
-param proxyVmSize = 'Standard_B2s'
-```
-
-The same administrator public key is installed on both proxy VMs. `proxyAdminUsername` determines the Linux account and home-directory path, while `proxyVmSize` controls the compute size of each VM. The proxy VMs have no public IP addresses, so this key can only be used over a private network path such as Azure Bastion or VPN/ExpressRoute connectivity. Azure Run Command remains available through the Azure control plane without using this SSH key.
-
 Only public keys belong in `main.bicepparam`. Never place private key content in the parameter file or source control.
+
+Each local user receives `rwdlc` permissions only on its own generated container. This prevents one SFTP user from listing, reading, modifying, or deleting another user's files through SFTP.
 
 ## Sign In and Select a Subscription
 
@@ -193,8 +119,7 @@ Register the required resource providers:
 
 ```powershell
 az provider register --namespace Microsoft.Storage --wait
-az provider register --namespace Microsoft.Network --wait
-az provider register --namespace Microsoft.Compute --wait
+az provider register --namespace Microsoft.EventGrid --wait
 ```
 
 Create the resource group if it does not already exist:
@@ -208,23 +133,11 @@ az group create `
 
 ## Validate the Deployment
 
-Compile the Bicep entrypoint and all modules referenced by it, then compile the parameter file:
+Compile the Bicep template locally:
 
 ```powershell
 az bicep build --file .\main.bicep --stdout | Out-Null
-if ($LASTEXITCODE -ne 0) {
-  throw 'main.bicep or one of its modules failed validation.'
-}
-
-az bicep build-params --file .\main.bicepparam --stdout | Out-Null
-if ($LASTEXITCODE -ne 0) {
-  throw 'main.bicepparam failed validation.'
-}
-
-Write-Host 'All Bicep files passed validation.'
 ```
-
-Building `main.bicep` also compiles `storage.bicep`, `network.bicep`, `private-endpoint.bicep`, `load-balancer.bicep`, and `nginx-proxies.bicep` because they are referenced as modules. `build-params` separately verifies that `main.bicepparam` matches the entrypoint parameters.
 
 Validate the template and parameter file against Azure Resource Manager:
 
@@ -297,9 +210,7 @@ az storage account local-user list `
   --output table
 ```
 
-The `publicNetworkAccess` value must be `Disabled`.
-
-Verify the per-user Blob containers:
+Verify the Blob containers:
 
 ```powershell
 az storage container-rm list `
@@ -309,43 +220,7 @@ az storage container-rm list `
   --output table
 ```
 
-Each container name combines the configured prefix and local username. Container-level permission scopes prevent one local user from accessing another user's container.
-
-Read the deployed public IP, private endpoint IP, and proxy VM names:
-
-```powershell
-$deploymentOutputs = az deployment group show `
-  --name $deploymentName `
-  --resource-group $resourceGroupName `
-  --query properties.outputs `
-  --output json | ConvertFrom-Json
-
-$sftpPublicIp = $deploymentOutputs.loadBalancerPublicIpAddress.value
-$storagePrivateIp = $deploymentOutputs.storageBlobPrivateEndpointIpAddress.value
-$proxyVmNames = $deploymentOutputs.proxyVirtualMachineNames.value
-
-$sftpPublicIp
-$storagePrivateIp
-$proxyVmNames
-```
-
-Azure can leave `storageBlobPrivateEndpointIpAddress` empty while the private endpoint DNS metadata is still being populated. The authoritative runtime check is the Storage hostname resolution from each proxy VM below.
-
-Use Azure Run Command to confirm on both instances that cloud-init installed Nginx, the Stream listener is active, and the Storage hostname resolves to the private endpoint:
-
-```powershell
-foreach ($proxyVmName in $proxyVmNames) {
-  az vm run-command invoke `
-    --resource-group $resourceGroupName `
-    --name $proxyVmName `
-    --command-id RunShellScript `
-    --scripts "cloud-init status --wait" "nginx -t" "systemctl is-active nginx" "ss -lnt | grep ':2222'" "getent hosts ${storageAccountName}.blob.core.windows.net" `
-    --query 'value[].message' `
-    --output tsv
-}
-```
-
-The Storage hostname must resolve to a private address on both VMs. When `$storagePrivateIp` is populated, the resolved address must match it. The VMs have no public IPs and the NSG doesn't expose their SSH daemons; administer them through Azure Run Command, Azure Bastion, or a private network connection.
+The expected names use `<blobContainerNamePrefix>-<localUserName>` and are converted to lowercase.
 
 ## Test an SFTP Connection
 
@@ -355,16 +230,15 @@ Create a small test file:
 Set-Content -Path .\sftp-test.txt -Value 'Azure Storage SFTP connectivity test'
 ```
 
-Connect through the load balancer as the first local user. Azure Storage SFTP still uses the login format `<storage-account>.<local-user>`:
+Connect as the first local user. Azure Storage SFTP uses the login format `<storage-account>.<local-user>`:
 
 ```powershell
 $localUserName = 'sftpuser01'
 $sftpLogin = "${storageAccountName}.${localUserName}"
+$sftpHostName = "${storageAccountName}.blob.core.windows.net"
 
-sftp -i "$HOME\.ssh\azure-sftp\sftpuser01" "${sftpLogin}@${sftpPublicIp}"
+sftp -i "$HOME\.ssh\azure-sftp\sftpuser01" "${sftpLogin}@${sftpHostName}"
 ```
-
-On the first connection, verify the presented SSH host key fingerprint against the [published Azure Storage SFTP host keys](https://learn.microsoft.com/azure/storage/blobs/secure-file-transfer-protocol-host-keys) before accepting it. The load balancer and Nginx proxy don't replace or terminate the Storage SSH session.
 
 At the interactive SFTP prompt, test the assigned permissions:
 
@@ -378,7 +252,7 @@ rm sftp-test.txt
 exit
 ```
 
-The template grants `rwdlc` permissions on each user's own container: read, write, delete, list, and create. Password authentication and shared-key authentication are disabled for these local users.
+The template grants `rwdlc` permissions: read, write, delete, list, and create. Password authentication and shared-key authentication are disabled for these local users.
 
 ## Troubleshooting
 
@@ -386,11 +260,8 @@ The template grants `rwdlc` permissions on each user's own container: read, writ
 - **Region does not support SFTP:** deploy to a supported Azure region by passing `location` in the parameter file or selecting a resource group in a supported region.
 - **Authorization failure:** confirm the signed-in identity has deployment permissions and that the correct subscription is selected.
 - **SSH authentication failure:** confirm the public key assigned to the local user matches the private key supplied with `sftp -i`.
-- **Connection timeout:** confirm outbound TCP 22 is permitted by the client network and the load balancer probe reports both proxy VMs as healthy.
-- **Load balancer probe unhealthy:** use Azure Run Command to inspect `cloud-init status --long`, `systemctl status nginx`, and `journalctl -u nginx` on each proxy VM.
-- **Nginx can't reach Storage:** confirm `${storageAccountName}.blob.core.windows.net` resolves on the VM to the Blob private endpoint IP and TCP 22 is permitted within the virtual network.
-- **Nginx package installation fails:** confirm the load balancer outbound rule and public IP are deployed and that the VM can reach Ubuntu package repositories.
-- **Home directory or permission failure:** confirm that the Blob container name matches the local user's `homeDirectory` and `permissionScopes.resourceName`.
+- **Connection timeout:** verify that public network access is allowed and that outbound TCP port 22 is permitted by the client network.
+- **Home directory or permission failure:** confirm that the user's generated Blob container matches its `homeDirectory` and `permissionScopes.resourceName`.
 
 Inspect deployment errors with:
 
@@ -404,7 +275,7 @@ az deployment group show `
 
 ## Remove the Deployment
 
-Deleting the resource group permanently deletes the storage account and its Blob data:
+Deleting the resource group permanently deletes the storage account and all data in its Blob container:
 
 ```powershell
 az group delete `
@@ -412,4 +283,4 @@ az group delete `
   --yes
 ```
 
-Confirm that no retained data or other required resources exist in the deployment resource group before running this command.
+Confirm that no retained data or other required resources exist in the resource group before running this command.
