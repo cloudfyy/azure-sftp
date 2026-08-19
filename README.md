@@ -32,13 +32,13 @@ flowchart LR
     pip["Static Standard public IP"]
     lb["Standard Load Balancer<br/>TCP 22 to TCP 2222"]
 
-    subgraph vnet["Virtual network 10.20.0.0/16"]
-      subgraph proxySubnet["Proxy subnet 10.20.1.0/24"]
+    subgraph vnet["Virtual network 10.20.0.0/16 (default)"]
+      subgraph proxySubnet["Proxy subnet 10.20.1.0/24 (default)"]
         vm1["Nginx proxy VM 1<br/>TCP 2222"]
         vm2["Nginx proxy VM 2<br/>TCP 2222"]
       end
 
-      subgraph peSubnet["Private endpoint subnet 10.20.2.0/24"]
+      subgraph peSubnet["Private endpoint subnet 10.20.2.0/24 (default)"]
         pe["Blob private endpoint"]
       end
     end
@@ -148,12 +148,15 @@ $proxyAdminSshPublicKey
 Edit `main.bicepparam` and set:
 
 - `storageAccountName` to a globally unique name
+- `virtualNetworkAddressPrefix` to the required VNet address space in CIDR notation; the default is `10.20.0.0/16`
 - `blobContainerNamePrefix` to the container name prefix; the default creates `data-sftpuser01`, `data-sftpuser02`, and `data-sftpuser03`
 - `enableSecurityControlTag` to `true` only when the storage account requires the `SecurityControl=Ignore` tag; the default is `false`
 - `proxyAdminSshPublicKey` to the public key generated for proxy VM administration
 - `proxyAdminUsername` to the required Linux administrator username
 - `proxyVmSize` to a VM size available in the selected region
 - Each `localUsers` entry to the required username and matching public key
+
+The default proxy and private endpoint subnet prefixes are `10.20.1.0/24` and `10.20.2.0/24`. They must remain inside `virtualNetworkAddressPrefix` and must not overlap. If you choose a VNet range that doesn't contain these defaults, also set `proxySubnetAddressPrefix` and `privateEndpointSubnetAddressPrefix` in `main.bicepparam`.
 
 Paste the complete single-line public key value into `main.bicepparam`, not the path to the `.pub` file. For example:
 

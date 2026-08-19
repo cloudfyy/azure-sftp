@@ -1,6 +1,7 @@
 using './main.bicep'
 
 param storageAccountName = 'stsftpexample001'
+param virtualNetworkAddressPrefix = '10.20.0.0/16'
 param blobContainerNamePrefix = 'data'
 param enableSecurityControlTag = false
 param proxyAdminSshPublicKey = '<proxy-admin-ssh-public-key>'
