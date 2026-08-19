@@ -16,6 +16,11 @@ param blobContainerNamePrefix string = 'data'
 @description('Whether to add the SecurityControl=Ignore tag to the storage account.')
 param enableSecurityControlTag bool = false
 
+@description('Public IPv4 addresses or CIDR ranges allowed to access the storage account.')
+@minLength(1)
+@maxLength(400)
+param allowedIpRanges string[]
+
 type localUserConfig = {
   @minLength(3)
   @maxLength(42)
@@ -34,6 +39,7 @@ module storageAccount './storage-account.bicep' = {
     location: location
     storageAccountName: storageAccountName
     enableSecurityControlTag: enableSecurityControlTag
+    allowedIpRanges: allowedIpRanges
   }
 }
 

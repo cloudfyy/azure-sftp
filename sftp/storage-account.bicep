@@ -9,6 +9,11 @@ param storageAccountName string
 @description('Whether to add the SecurityControl=Ignore tag to the storage account.')
 param enableSecurityControlTag bool
 
+@description('Public IPv4 addresses or CIDR ranges allowed to access the storage account.')
+@minLength(1)
+@maxLength(400)
+param allowedIpRanges string[]
+
 resource storageAccount 'Microsoft.Storage/storageAccounts@2025-06-01' = {
   name: storageAccountName
   location: location
@@ -27,6 +32,15 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2025-06-01' = {
     isLocalUserEnabled: true
     isSftpEnabled: true
     minimumTlsVersion: 'TLS1_2'
+    networkAcls: {
+      bypass: 'None'
+      defaultAction: 'Deny'
+      ipRules: [for ipRange in allowedIpRanges: {
+        action: 'Allow'
+        value: ipRange
+      }]
+      virtualNetworkRules: []
+    }
     publicNetworkAccess: 'Enabled'
     supportsHttpsTrafficOnly: true
   }
