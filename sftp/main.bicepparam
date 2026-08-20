@@ -1,7 +1,7 @@
 using './main.bicep'
 
-param storageAccountName = 'stsftpreplace001'
-param blobContainerNamePrefix = 'data'
+param storageAccountName = 'stsftpreplace002'
+param blobContainerName = 'data'
 param enableSecurityControlTag = false
 param allowedIpRanges = [
 	'203.0.113.10'
@@ -9,14 +9,14 @@ param allowedIpRanges = [
 param localUsers = [
 	{
 		name: 'sftpuser01'
-		sshPublicKey: ''
+		sshPublicKey: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC84+Rp8+7K2fm7xyABsTpy/MiUmbz4QajjWox02rx4Cu+3j5OabS/LH/R18FTfyVV/055weu2I2yMFSzn936lrorLkIFpVeLanhpqj6I8adEfyRBnNT8epYi3bI4i/1TBV677qlIFCkHno1vrtUAbqvUkEhQ+Tv/YvId/E8CI8hQCDxt0mCi7JBOC7K/QyrRmnPNK6z742DMSINQn3dtmMeOHvP5ProVv7OUwtB4dMKZH92uyplIZG1CvtMZZEIgQt3wtI9+nON/6NwisLG4kkqwc8AY+ZNweYtFIUZ0NjXKzHJeojwbfIFtUe+OZiFDtstDkZpgj+Y5QRvpUfYr/JufBPq55WzDhZgd2z/tBJdaHLlPHMx+LlcwSXp4uEGi5IUeHKEMxXqReHKvdLVIC6wQf3vFRzF2EyuRE3xxZgs/uqwUjCJ8YA1py4mmXis9KIoTKUPsW/lsciBj2rq6KH3jNjAmG5X+3JCLyfuCT+KGi38TYWdRbtorfkx211p5SfqM7sxytwCuqtNb5qXioszssOpZF0VvNdmS18x04ujQ50PmY0npIrfb+TYeu24O0oQlzWoo018e7lb5F2PWeWItrNzuZuPeigZGzVO90NkUC5o6Ana273b6bZTHAbXXAk2ozoX8tVN4takzLhxtCyZcQPhzPre0ZmPn7GUsFxOQ== sftpuser01'
 	}
 	{
 		name: 'sftpuser02'
-		sshPublicKey: ''
+		sshPublicKey: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDQLM3tYRw39BJOusuaGqKcTVRcYM8vk+3uzj/xd+t8z248ZLzGnz1oxe/he+OCsk43ZSTCNPElS5zSNqpUczC5B5jDx0Ob77lRlvW67weUmiY+IgvtHVNKqxr9cfN86j1yyvlQwLQq0gwGCglqVGDQwivOFYPHoJ1Y0BMoq3cge4mGkknoVHNyrj5sDAeEKWN/CUUvhZMgOuD8izWk43SfcwUcYA7q3RAaAG/oVINdE03PiextXLlil6w43pFMivrkRauhaGgse4bW5zExZzM+7y2eIi+APqtUolkbh4JQhBzPsv4bDNptzfHlcWQm375+bAHmL2u4orlo6V36Y6YkdCJOPYP8n1d1YXWSUvqZTPOCb90oeUKRl1j8jZ9pYFFuj5OFFSY4VF6wJy63FGXxuWORpmY3Vra9snkKaUHRbhFO0csoz0UMZe1BAO3iCnC+1D+MMAcMjpYbh8qxGfcrs0qwkpNu+8YGRJVPtnPu/I7WaoZx6WZkcCAKUNGr9WMWTBHBxQUQFn/LXWXI7OLkGup6xEcqrh4ireKgADk3iEcUzK67FWV34/hQVZRjv73ck4LyyLL08WNA0uS8LokE9s/dYdVQ5ZheW1ptkUClEVrJlJv387uzGDrlOC2WCb6eNnAhr4u4ygauhl3CCB8SvFmv3gDcSEx42YXLb1bjKw== sftpuser02'
 	}
 	{
 		name: 'sftpuser03'
-		sshPublicKey: ''
+		sshPublicKey: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC9x8dlYGswPqy2A7MDIyI0LIU18yzV/zu/tZ2SNIJwtVHs6q9gt3kfJSCp4u67SfsFYWHnImsdlRGhd+mrlc6nljDn8rQRted6zKZ5fBeSWXTSiz25AQ+tiqIGj5zXrugLJayACg/oyQhcEjRJHfsdIOr9Df6ft32SvtHdLA+NjTqAJMIb4p5GfayliQps+d09cND617L4guaNmfxa02lWMh6gs66j7WlVG3qbWOntgPMZ1tOtwo2/fzUOw4jSIzWNzZ6spVX0mkrUAwbgtKDd80I5m5vAQdD0ILwMBHxwG62diUEULzB1KffF+VC12CNt6L0nm6msRiRz1krmE3ATmR02ZldrI7cHmZHr8L3Ct41cyZnkCRnr6jj7fGzZ1TtLTKsP2+rTSlbsceeTmF35PBAKcKpcQlo8A7qFsd8WI5RVLyVQlwYe7sdxsEd/KQVOjFW1ICDXR/wU8+N9pWxiIdCB0qMls2K2rL6Xo3mFuTw3WlFuQP+CvhfY3Irods5W5QoF7SFzKmgzOCNNORgnInuZxzCO+fF8izDxOOiFGY+5ZnC/P+H0tPl6M+umcMIECakKELNzlTfwmHMIBut3a3upcAnSFKs44BJ/JN7/RSTFfmwOUMC2p2bAWtb6Nfges3Zv7vMeA6plDYON62JN3ymDD6FSp+v6pznVnb9Bgw== sftpuser03'
 	}
 ]

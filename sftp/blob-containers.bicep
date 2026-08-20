@@ -1,13 +1,10 @@
 @description('Name of the existing storage account.')
 param storageAccountName string
 
-@description('Prefix for each private SFTP user container.')
+@description('Name of the private Blob container shared by all SFTP local users.')
 @minLength(3)
-@maxLength(20)
-param blobContainerNamePrefix string
-
-@description('SFTP local user names used to generate container names.')
-param localUserNames string[]
+@maxLength(63)
+param blobContainerName string
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2025-06-01' existing = {
   name: storageAccountName
@@ -18,12 +15,12 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2025-06-01'
   name: 'default'
 }
 
-resource blobContainers 'Microsoft.Storage/storageAccounts/blobServices/containers@2025-06-01' = [for localUserName in localUserNames: {
+resource blobContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2025-06-01' = {
   parent: blobService
-  name: toLower('${blobContainerNamePrefix}-${localUserName}')
+  name: blobContainerName
   properties: {
     publicAccess: 'None'
   }
-}]
+}
 
-output blobContainerNames string[] = [for (localUserName, index) in localUserNames: blobContainers[index].name]
+output blobContainerName string = blobContainer.name

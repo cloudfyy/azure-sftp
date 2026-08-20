@@ -8,10 +8,10 @@ param location string = resourceGroup().location
 @maxLength(24)
 param storageAccountName string = 'st${uniqueString(resourceGroup().id)}'
 
-@description('Prefix for each private SFTP user container.')
+@description('Name of the private Blob container shared by all SFTP local users.')
 @minLength(3)
-@maxLength(20)
-param blobContainerNamePrefix string = 'data'
+@maxLength(63)
+param blobContainerName string = 'data'
 
 @description('Whether to add the SecurityControl=Ignore tag to the storage account.')
 param enableSecurityControlTag bool = false
@@ -47,8 +47,7 @@ module blobContainers './blob-containers.bicep' = {
   name: 'blob-containers'
   params: {
     storageAccountName: storageAccount.outputs.storageAccountName
-    blobContainerNamePrefix: blobContainerNamePrefix
-    localUserNames: [for localUser in localUsers: localUser.name]
+    blobContainerName: blobContainerName
   }
 }
 
@@ -57,7 +56,7 @@ module sftpUsers './sftp-users.bicep' = {
   params: {
     storageAccountName: storageAccount.outputs.storageAccountName
     localUsers: localUsers
-    blobContainerNames: blobContainers.outputs.blobContainerNames
+    blobContainerName: blobContainers.outputs.blobContainerName
   }
 }
 
@@ -65,5 +64,5 @@ output storageAccountId string = storageAccount.outputs.storageAccountId
 output blobEndpoint string = storageAccount.outputs.blobEndpoint
 output sftpEndpoint string = storageAccount.outputs.sftpEndpoint
 output localUserNames string[] = sftpUsers.outputs.localUserNames
-output blobContainerNames string[] = blobContainers.outputs.blobContainerNames
+output blobContainerName string = blobContainers.outputs.blobContainerName
 output sftpLoginAddresses string[] = sftpUsers.outputs.sftpLoginAddresses
