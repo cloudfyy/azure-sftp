@@ -13,16 +13,16 @@ type localUserConfig = {
 @maxLength(3)
 param localUsers localUserConfig[]
 
-@description('Name of the Blob container shared by all SFTP local users.')
+@description('Blob container name corresponding to each local user by array index.')
 @minLength(3)
-@maxLength(63)
-param blobContainerName string
+@maxLength(3)
+param blobContainerNames string[]
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2025-06-01' existing = {
   name: storageAccountName
 }
 
-resource sftpLocalUsers 'Microsoft.Storage/storageAccounts/localUsers@2025-06-01' = [for localUser in localUsers: {
+resource sftpLocalUsers 'Microsoft.Storage/storageAccounts/localUsers@2025-06-01' = [for (localUser, index) in localUsers: {
   parent: storageAccount
   name: localUser.name
   properties: {
@@ -30,11 +30,11 @@ resource sftpLocalUsers 'Microsoft.Storage/storageAccounts/localUsers@2025-06-01
     hasSharedKey: false
     hasSshKey: true
     hasSshPassword: false
-    homeDirectory: blobContainerName
+    homeDirectory: blobContainerNames[index]
     permissionScopes: [
       {
         permissions: 'rwdlc'
-        resourceName: blobContainerName
+        resourceName: blobContainerNames[index]
         service: 'blob'
       }
     ]

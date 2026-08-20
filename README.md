@@ -6,9 +6,9 @@ This guide deploys the resources defined in `main.bicep` by using the values in 
 
 - One Standard LRS `StorageV2` storage account
 - Hierarchical namespace (HNS), SFTP, and local users enabled
-- One private Blob container shared by all local users
+- One private Blob container per local user, named `<prefix>-<username>`
 - Exactly three SFTP local users authenticated with SSH public keys
-- Each local user has `rwdlc` permissions on the shared container
+- Each local user is restricted to its own container
 - Public network access restricted to an explicit IPv4/CIDR allowlist
 - Minimum TLS version of 1.2
 - No `SecurityControl` tag by default; it can be enabled through a deployment parameter
@@ -19,8 +19,8 @@ Azure may also display a platform-managed Event Grid System Topic associated wit
 
 - `sftp/main.bicep` defines deployment parameters, orchestrates the modules, and returns consolidated outputs.
 - `sftp/storage-account.bicep` deploys the StorageV2 account and its SFTP/HNS security settings.
-- `sftp/blob-containers.bicep` deploys the Blob service and the shared private container.
-- `sftp/sftp-users.bicep` deploys local users and grants each user permissions on the shared container.
+- `sftp/blob-containers.bicep` deploys the Blob service and one private container per local user.
+- `sftp/sftp-users.bicep` deploys local users and binds each user to its corresponding container and permissions.
 - `sftp/main.bicepparam` supplies environment-specific deployment values.
 
 Deployments continue to use `main.bicep` as the entry point. The resource modules are not deployed separately.
@@ -90,7 +90,7 @@ Get-Content "$HOME\.ssh\azure-sftp\sftpuser03.pub"
 Edit `main.bicepparam` and set:
 
 - `storageAccountName` to a globally unique name
-- `blobContainerName` to the shared container name; the default is `data`
+- `blobContainerNamePrefix` to the container name prefix; the default creates `data-sftpuser01`, `data-sftpuser02`, and `data-sftpuser03`
 - `enableSecurityControlTag` to `true` only when the storage account requires the `SecurityControl=Ignore` tag; the default is `false`
 - `allowedIpRanges` to one or more fixed public IPv4 addresses or CIDR ranges used by the SFTP clients
 - Each `localUsers` entry to the required username and matching public key
@@ -99,7 +99,7 @@ Only public keys belong in `main.bicepparam`. Never place private key content in
 
 Replace the documentation-only address `203.0.113.10` before deployment. Use the client's internet-facing egress address after NAT or an enterprise firewall, not a private address such as `10.x.x.x` or `192.168.x.x`. The Storage firewall denies every source that is not listed. Up to 400 IP rules are supported.
 
-Each local user receives `rwdlc` permissions on the shared container. Users can list, read, modify, and delete files created by other users in that container, so use this design only when the users belong to the same trust boundary.
+Each local user receives `rwdlc` permissions only on its own generated container. This prevents one SFTP user from listing, reading, modifying, or deleting another user's files through SFTP.
 
 ## Sign In and Select a Subscription
 
@@ -206,8 +206,6 @@ az deployment group what-if `
 
 Review the `what-if` output before continuing. The parameter file uses its `using './main.bicep'` declaration, so `--template-file` must not be supplied with these deployment commands.
 
-When upgrading an existing deployment that used one container per user, incremental deployment creates the shared container and repoints the users but does not delete the old containers. Migrate any required data to the shared container, verify access, and then delete the old containers explicitly if they are no longer needed.
-
 ## Deploy
 
 Run the resource-group deployment:
@@ -274,7 +272,7 @@ az storage container-rm list `
   --output table
 ```
 
-The expected container name is the configured `blobContainerName` value (`data` by default).
+The expected names use `<blobContainerNamePrefix>-<localUserName>` and are converted to lowercase.
 
 ## Test an SFTP Connection
 
@@ -315,7 +313,7 @@ The template grants `rwdlc` permissions: read, write, delete, list, and create. 
 - **Authorization failure:** confirm the signed-in identity has deployment permissions and that the correct subscription is selected.
 - **SSH authentication failure:** confirm the public key assigned to the local user matches the private key supplied with `sftp -i`.
 - **Connection timeout or immediate disconnect:** confirm the client's current internet-facing IPv4 address is included in `allowedIpRanges` and that outbound TCP port 22 is permitted by the client network.
-- **Home directory or permission failure:** confirm that the shared Blob container matches every user's `homeDirectory` and `permissionScopes.resourceName`.
+- **Home directory or permission failure:** confirm that the user's generated Blob container matches its `homeDirectory` and `permissionScopes.resourceName`.
 
 Inspect deployment errors with:
 

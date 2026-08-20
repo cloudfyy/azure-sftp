@@ -1,7 +1,7 @@
 using './main.bicep'
 
 param storageAccountName = 'stsftpreplace002'
-param blobContainerName = 'data'
+param blobContainerNamePrefix = 'data'
 param enableSecurityControlTag = false
 param allowedIpRanges = [
 	'203.0.113.10'
