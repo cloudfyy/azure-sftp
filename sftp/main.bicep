@@ -8,8 +8,7 @@ param location string = resourceGroup().location
 @maxLength(24)
 param storageAccountName string = 'st${uniqueString(resourceGroup().id)}'
 
-@description('Prefix for each private SFTP user container.')
-@minLength(3)
+@description('Optional prefix for each private SFTP user container. When empty, the username is used as the container name.')
 @maxLength(20)
 param blobContainerNamePrefix string = 'data'
 
@@ -17,7 +16,6 @@ param blobContainerNamePrefix string = 'data'
 param enableSecurityControlTag bool = false
 
 @description('Public IPv4 addresses or CIDR ranges allowed to access the storage account.')
-@minLength(1)
 @maxLength(400)
 param allowedIpRanges string[]
 
@@ -26,11 +24,12 @@ type localUserConfig = {
   @maxLength(42)
   name: string
   sshPublicKey: string
+  accessibleUserNames: string[]?
 }
 
-@description('Exactly three SFTP local users and their SSH public keys.')
-@minLength(3)
-@maxLength(3)
+@description('Exactly four SFTP local users, their SSH public keys, and optional access to other users containers.')
+@minLength(4)
+@maxLength(4)
 param localUsers localUserConfig[]
 
 module storageAccount './storage-account.bicep' = {
@@ -58,6 +57,7 @@ module sftpUsers './sftp-users.bicep' = {
     storageAccountName: storageAccount.outputs.storageAccountName
     localUsers: localUsers
     blobContainerNames: blobContainers.outputs.blobContainerNames
+    blobContainerNamePrefix: blobContainerNamePrefix
   }
 }
 

@@ -6,14 +6,59 @@ This guide deploys the resources defined in `main.bicep` by using the values in 
 
 - One Standard LRS `StorageV2` storage account
 - Hierarchical namespace (HNS), SFTP, and local users enabled
-- One private Blob container per local user, named `<prefix>-<username>`
-- Exactly three SFTP local users authenticated with SSH public keys
-- Each local user is restricted to its own container
+- One private Blob container per local user, named `<prefix>-<username>` or `<username>` when the prefix is empty
+- Exactly four SFTP local users authenticated with SSH public keys
+- `sftpuser01` through `sftpuser03` are restricted to their own containers
+- `sftpuser04` uses its own container as its home directory and can access all four user containers
 - Public network access restricted to an explicit IPv4/CIDR allowlist
 - Minimum TLS version of 1.2
 - No `SecurityControl` tag by default; it can be enabled through a deployment parameter
 
 Azure may also display a platform-managed Event Grid System Topic associated with the storage account. It is not explicitly declared or managed by this Bicep template.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Clients["SFTP clients"]
+    Client01["Client for sftpuser01"]
+    Client02["Client for sftpuser02"]
+    Client03["Client for sftpuser03"]
+    Client04["Privileged client<br/>sftpuser04"]
+  end
+
+  Defender["Subscription-level<br/>Defender for Storage"]
+
+  subgraph Storage["Azure Storage account - SFTP and HNS enabled"]
+    Firewall["Storage firewall<br/>IPv4/CIDR allowlist"]
+    User01["Local user<br/>sftpuser01"]
+    User02["Local user<br/>sftpuser02"]
+    User03["Local user<br/>sftpuser03"]
+    User04["Privileged local user<br/>sftpuser04"]
+    Container01[("data-sftpuser01")]
+    Container02[("data-sftpuser02")]
+    Container03[("data-sftpuser03")]
+    Container04[("data-sftpuser04")]
+
+    Firewall --> User01
+    Firewall --> User02
+    Firewall --> User03
+    Firewall --> User04
+    User01 -->|"homeDirectory and rwdlc"| Container01
+    User02 -->|"homeDirectory and rwdlc"| Container02
+    User03 -->|"homeDirectory and rwdlc"| Container03
+    User04 -->|"rwdlc"| Container01
+    User04 -->|"rwdlc"| Container02
+    User04 -->|"rwdlc"| Container03
+    User04 -->|"homeDirectory and rwdlc"| Container04
+  end
+
+  Client01 -->|"SFTP over TCP 22<br/>SSH public key"| Firewall
+  Client02 -->|"SFTP over TCP 22<br/>SSH public key"| Firewall
+  Client03 -->|"SFTP over TCP 22<br/>SSH public key"| Firewall
+  Client04 -->|"SFTP over TCP 22<br/>SSH public key"| Firewall
+  Defender -. "Inherited protection<br/>not deployed by this template" .-> Storage
+```
 
 ## Template Structure
 
@@ -70,13 +115,14 @@ From the repository root, open the deployment directory:
 Set-Location .\sftp
 ```
 
-The template requires exactly three local users. Generate a separate SSH key pair for each user if suitable keys do not already exist:
+The template requires exactly four local users. Generate a separate SSH key pair for each user if suitable keys do not already exist:
 
 ```powershell
 New-Item -ItemType Directory -Path "$HOME\.ssh\azure-sftp" -Force | Out-Null
 ssh-keygen -t rsa -b 4096 -f "$HOME\.ssh\azure-sftp\sftpuser01" -C "sftpuser01"
 ssh-keygen -t rsa -b 4096 -f "$HOME\.ssh\azure-sftp\sftpuser02" -C "sftpuser02"
 ssh-keygen -t rsa -b 4096 -f "$HOME\.ssh\azure-sftp\sftpuser03" -C "sftpuser03"
+ssh-keygen -t rsa -b 4096 -f "$HOME\.ssh\azure-sftp\sftpuser04" -C "sftpuser04"
 ```
 
 Display each public key:
@@ -85,21 +131,23 @@ Display each public key:
 Get-Content "$HOME\.ssh\azure-sftp\sftpuser01.pub"
 Get-Content "$HOME\.ssh\azure-sftp\sftpuser02.pub"
 Get-Content "$HOME\.ssh\azure-sftp\sftpuser03.pub"
+Get-Content "$HOME\.ssh\azure-sftp\sftpuser04.pub"
 ```
 
 Edit `main.bicepparam` and set:
 
 - `storageAccountName` to a globally unique name
-- `blobContainerNamePrefix` to the container name prefix; the default creates `data-sftpuser01`, `data-sftpuser02`, and `data-sftpuser03`
+- `blobContainerNamePrefix` to the optional container name prefix; the default creates `data-sftpuser01` through `data-sftpuser04`, while `''` creates `sftpuser01` through `sftpuser04`
 - `enableSecurityControlTag` to `true` only when the storage account requires the `SecurityControl=Ignore` tag; the default is `false`
-- `allowedIpRanges` to one or more fixed public IPv4 addresses or CIDR ranges used by the SFTP clients
+- `allowedIpRanges` to the fixed public IPv4 addresses or CIDR ranges used by the SFTP clients; an empty array denies all public SFTP clients
 - Each `localUsers` entry to the required username and matching public key
+- `sftpuser04.accessibleUserNames` to `sftpuser01` through `sftpuser04`, granting access to all four generated containers
 
 Only public keys belong in `main.bicepparam`. Never place private key content in the parameter file or source control.
 
 Replace the documentation-only address `203.0.113.10` before deployment. Use the client's internet-facing egress address after NAT or an enterprise firewall, not a private address such as `10.x.x.x` or `192.168.x.x`. The Storage firewall denies every source that is not listed. Up to 400 IP rules are supported.
 
-Each local user receives `rwdlc` permissions only on its own generated container. This prevents one SFTP user from listing, reading, modifying, or deleting another user's files through SFTP.
+Users `sftpuser01` through `sftpuser03` receive `rwdlc` permissions only on their own generated containers. `sftpuser04` receives `rwdlc` on all four containers and is therefore a privileged user that can list, read, create, modify, and delete every user's SFTP data. Its `homeDirectory` remains `data-sftpuser04`; the home directory controls the initial location, not the full authorization scope.
 
 ## Sign In and Select a Subscription
 
@@ -272,7 +320,7 @@ az storage container-rm list `
   --output table
 ```
 
-The expected names use `<blobContainerNamePrefix>-<localUserName>` and are converted to lowercase.
+The expected names use `<blobContainerNamePrefix>-<localUserName>` and are converted to lowercase. When `blobContainerNamePrefix` is empty, each container name is the lowercase local username without a leading hyphen.
 
 ## Test an SFTP Connection
 
@@ -305,6 +353,86 @@ exit
 ```
 
 The template grants `rwdlc` permissions: read, write, delete, list, and create. Password authentication and shared-key authentication are disabled for these local users.
+
+### Test sftpuser04
+
+Before testing from a public network, add the test workstation's internet-facing IPv4 address to `allowedIpRanges` and redeploy. With `allowedIpRanges = []` and the storage firewall `defaultAction` set to `Deny`, every public SFTP connection is blocked.
+
+First connect without specifying a container. This verifies that the privileged user's home directory is its own `data-sftpuser04` container:
+
+```powershell
+$sftpHostName = "${storageAccountName}.blob.core.windows.net"
+$user04Key = "$HOME\.ssh\azure-sftp\sftpuser04"
+
+sftp -i $user04Key "${storageAccountName}.sftpuser04@${sftpHostName}"
+```
+
+At the SFTP prompt, upload and remove a test file in the home container:
+
+```text
+pwd
+ls
+put sftp-test.txt user04-home-test.txt
+get user04-home-test.txt user04-home-download.txt
+rm user04-home-test.txt
+exit
+```
+
+To test another authorized container, reconnect and include the container name in the login username. Azure Storage SFTP treats a connected container as a virtual root, so switching containers is done by reconnecting with the target container rather than using `cd ..`. The following container names assume the default `data` prefix; omit `data-` when `blobContainerNamePrefix` is empty:
+
+```powershell
+$containers = @(
+  'data-sftpuser01'
+  'data-sftpuser02'
+  'data-sftpuser03'
+  'data-sftpuser04'
+)
+
+foreach ($container in $containers) {
+  Write-Host "Connecting sftpuser04 to $container"
+  sftp -i $user04Key "${storageAccountName}.${container}.sftpuser04@${sftpHostName}"
+}
+```
+
+For each connection, run `pwd` and `ls`. To verify the full `rwdlc` scope, upload, download, and remove a uniquely named test file before exiting:
+
+```text
+pwd
+ls
+put sftp-test.txt user04-permission-test.txt
+get user04-permission-test.txt user04-permission-download.txt
+rm user04-permission-test.txt
+exit
+```
+
+Successful operations in all four sessions confirm that `sftpuser04` can access every configured container. Failure in only one container usually indicates that its `permissionScopes.resourceName` does not match the generated container name.
+
+### Upload SSH keys to sftpuser04
+
+The `sftp/upload-keys-to-user04.ps1` script creates a `keys` directory under the `sftpuser04` home container and uploads key files from `$HOME\.ssh\azure-sftp`. By default, it uploads only `.pub` public keys:
+
+```powershell
+.\sftp\upload-keys-to-user04.ps1 `
+  -StorageAccountName 'stsftpdatastorage01'
+```
+
+Preview the selected files and destination without connecting:
+
+```powershell
+.\sftp\upload-keys-to-user04.ps1 `
+  -StorageAccountName 'stsftpdatastorage01' `
+  -WhatIf
+```
+
+Uploading complete key pairs includes private keys and allows anyone who can read those files to authenticate as the corresponding SFTP users. Only use this option when storing private keys in the Blob container is an explicit security requirement:
+
+```powershell
+.\sftp\upload-keys-to-user04.ps1 `
+  -StorageAccountName 'stsftpdatastorage01' `
+  -IncludePrivateKeys
+```
+
+The private-key option requires typing `UPLOAD PRIVATE KEYS` before transfer. The script authenticates with `$HOME\.ssh\azure-sftp\sftpuser04` by default; override `-KeyDirectory` or `-IdentityFile` when keys are stored elsewhere. Before running it, allow the workstation's public IP in `allowedIpRanges`, deploy the firewall change, and establish one interactive SFTP connection if the storage endpoint's host key is not already trusted. Passphrase-protected identity files must be available through `ssh-agent` because the upload runs in SFTP batch mode.
 
 ## Troubleshooting
 

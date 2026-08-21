@@ -10,7 +10,6 @@ param storageAccountName string
 param enableSecurityControlTag bool
 
 @description('Public IPv4 addresses or CIDR ranges allowed to access the storage account.')
-@minLength(1)
 @maxLength(400)
 param allowedIpRanges string[]
 

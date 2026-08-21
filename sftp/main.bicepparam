@@ -2,7 +2,7 @@ using './main.bicep'
 
 param storageAccountName = 'stsftpreplace002'
 param blobContainerNamePrefix = 'data'
-param enableSecurityControlTag = false
+param enableSecurityControlTag = true
 param allowedIpRanges = [
 	'203.0.113.10'
 ]
@@ -18,5 +18,15 @@ param localUsers = [
 	{
 		name: 'sftpuser03'
 		sshPublicKey: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC9x8dlYGswPqy2A7MDIyI0LIU18yzV/zu/tZ2SNIJwtVHs6q9gt3kfJSCp4u67SfsFYWHnImsdlRGhd+mrlc6nljDn8rQRted6zKZ5fBeSWXTSiz25AQ+tiqIGj5zXrugLJayACg/oyQhcEjRJHfsdIOr9Df6ft32SvtHdLA+NjTqAJMIb4p5GfayliQps+d09cND617L4guaNmfxa02lWMh6gs66j7WlVG3qbWOntgPMZ1tOtwo2/fzUOw4jSIzWNzZ6spVX0mkrUAwbgtKDd80I5m5vAQdD0ILwMBHxwG62diUEULzB1KffF+VC12CNt6L0nm6msRiRz1krmE3ATmR02ZldrI7cHmZHr8L3Ct41cyZnkCRnr6jj7fGzZ1TtLTKsP2+rTSlbsceeTmF35PBAKcKpcQlo8A7qFsd8WI5RVLyVQlwYe7sdxsEd/KQVOjFW1ICDXR/wU8+N9pWxiIdCB0qMls2K2rL6Xo3mFuTw3WlFuQP+CvhfY3Irods5W5QoF7SFzKmgzOCNNORgnInuZxzCO+fF8izDxOOiFGY+5ZnC/P+H0tPl6M+umcMIECakKELNzlTfwmHMIBut3a3upcAnSFKs44BJ/JN7/RSTFfmwOUMC2p2bAWtb6Nfges3Zv7vMeA6plDYON62JN3ymDD6FSp+v6pznVnb9Bgw== sftpuser03'
+	}
+	{
+		name: 'sftpuser04'
+		sshPublicKey: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC3FOW5Z0cwBZhEpS4dYW1wiXT9wKMP1OUJlP0Zfp8MBacLoH2b5oh3pZmZoa4cfEry6gjufUwsg3SWp+1fOct6xhSm0IWmXY4g6PFlrPjkD6CRzuNZH+iI2AEdI+WV1OzgeUkP7Qknxt3BaxaRdp6MWsAaUz4d8/XXyibsvI96WoP3WRX34zZxbu7PQbwtgKrWAHAH5dxtts/ACO4Ax8p2ty13Aqh9Fabsn/+uJU+M76bYerXghG48D9bW1uWtN5/0Fh5cOyGCNdsL/MAoNeyLjzXjjZkK0ILeea3OX+mjEOUXXTfk7yr5rLYz+jWaZLnUsKb7G4eblRrqk1vj0IJUJPrWDDNVC1sDmSsFk7bZkNdHtMAvByw1ucVzU3+Rswy/6w/GeXVb6AWoZ4lSgJy2vbNxMOqNh/nK+0o5iq4+D8l8o1TQ5ThKWJzNmZwCEdKDf7DrazWhHUONR68m2fzJNFNHw1arubZvr3xxtt2N5MaE+4Z/JrIvyZOY2zsqQy7KIp2ucCKNWkDgeRzrPXtohyW7bzhAgCvfTDIJ/4H/sRT7Pv3rH7M553QMCZFyDq0xL8m6fHGT1AB6GOqgtMFBzpxQsMMpNSDimax194qPX6SjQpHCve3Vztye8/ph6+ygfQ8yAbRp0ZnlC4WcgiHI4gyKQM6R6bQGeFH1hE5m2w== sftpuser04'
+		accessibleUserNames: [
+			'sftpuser01'
+			'sftpuser02'
+			'sftpuser03'
+			'sftpuser04'
+		]
 	}
 ]

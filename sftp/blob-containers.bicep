@@ -1,8 +1,7 @@
 @description('Name of the existing storage account.')
 param storageAccountName string
 
-@description('Prefix for each private SFTP user container.')
-@minLength(3)
+@description('Optional prefix for each private SFTP user container. When empty, the username is used as the container name.')
 @maxLength(20)
 param blobContainerNamePrefix string
 
@@ -20,7 +19,7 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2025-06-01'
 
 resource blobContainers 'Microsoft.Storage/storageAccounts/blobServices/containers@2025-06-01' = [for localUserName in localUserNames: {
   parent: blobService
-  name: toLower('${blobContainerNamePrefix}-${localUserName}')
+  name: toLower(empty(blobContainerNamePrefix) ? localUserName : '${blobContainerNamePrefix}-${localUserName}')
   properties: {
     publicAccess: 'None'
   }
